@@ -9,7 +9,7 @@
 #define IDEVICE_H
 
 #include <libusb-1.0/libusb.h>
-#include <mach/mach.h>
+//#include <mach/mach.h>
 
 #define APPLE_VID           0x05AC
 #define RECOVERY_PID        0x1280
@@ -19,10 +19,12 @@
 #define EP_CTRL_OUT         0x04
 #define EP_CTRL_IN          0x83
 #define EP_CMD_OUT          0x02
+#define EP_CMD_IN           0x81
 #define EP_FILE_OUT         0x05
 
 #define CMD_INIT            0x0000
 #define CMD_SEND_COMMAND    0x0803
+#define CMD_DUMP_BUFFER     0x0802
 #define CMD_SEND_FILE       0x0805
 #define CMD_ACK             0x0808
 
@@ -49,11 +51,12 @@ typedef struct {
 
 const char *device_mode_string(device_mode_t mode);
 
-kern_return_t idevice_open(idevice_t *dev);
+int idevice_open(idevice_t *dev);
 void idevice_close(idevice_t *dev);
 
-kern_return_t idevice_init_handshake(idevice_t *dev);
-kern_return_t idevice_send_command(idevice_t *dev, const char *cmd);
-kern_return_t idevice_send_file(idevice_t *dev, void *data, size_t size, uint32_t load_addr);
+int idevice_init_handshake(idevice_t *dev);
+int idevice_send_command(idevice_t *dev, const char *cmd);
+int idevice_send_file(idevice_t *dev, void *data, size_t size, uint32_t load_addr);
+int idevice_get_response(idevice_t *dev, char *response, size_t response_size);
 
 #endif

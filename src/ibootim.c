@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <mach/mach.h>
+//#include <mach/mach.h>
 #include <png.h>
 #include "ibootim.h"
 #include "crt.h"
@@ -281,22 +281,22 @@ static void png_read_from_mem(png_structp png_ptr, png_bytep out, png_size_t cou
     state->offset += count;
 }
 
-kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *template_payload, uint8_t **out_buf, size_t *out_size) {
+int ibootim_png_to_raw(const payload_t *png_payload, const payload_t *template_payload, uint8_t **out_buf, size_t *out_size) {
     if (template_payload->size < (APPLE8900_HEADER_SIZE + sizeof(img2_inner_header_t) + sizeof(ibootim_header_t))) {
         fprintf(stderr, "Template file too small\n");
-        return KERN_FAILURE;
+        return 5;
     }
 
     img2_inner_header_t *img2_hdr = (img2_inner_header_t *)(template_payload->data + APPLE8900_HEADER_SIZE);
     if (img2_hdr->signature != IMG2_SIGNATURE) {
         fprintf(stderr, "No Img2 signature at offset 0x800\n");
-        return KERN_FAILURE;
+        return 5;
     }
 
     ibootim_header_t *ibootim_hdr = (ibootim_header_t *)(template_payload->data + APPLE8900_HEADER_SIZE + sizeof(img2_inner_header_t));
     if (memcmp(ibootim_hdr->signature, IBOOTIM_SIGNATURE, 7) != 0) {
         fprintf(stderr, "No iBootIm signature at offset 0xC00\n");
-        return KERN_FAILURE;
+        return 5;
     }
 
     img2_inner_header_t saved_img2_hdr;
@@ -307,29 +307,29 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
 
     if (png_payload->size < 8 || png_sig_cmp(png_payload->data, 0, 8) != 0) {
         fprintf(stderr, "Not a valid PNG file\n");
-        return KERN_FAILURE;
+        return 5;
     }
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, png_error_fn, png_warn_fn);
     if (png_ptr == NULL) {
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     png_infop info_ptr = png_create_info_struct(png_ptr);
     if (info_ptr == NULL) {
         png_destroy_read_struct(&png_ptr, NULL, NULL);
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     png_infop end_info = png_create_info_struct(png_ptr);
     if (end_info == NULL) {
         png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        return KERN_FAILURE;
+        return 5;
     }
 
     png_mem_read_state_t read_state = { .data = png_payload->data, .size = png_payload->size, .offset = 0 };
@@ -347,13 +347,13 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
     if (width > 320 || height > 480) {
         fprintf(stderr, "PNG dimensions %ux%u exceed 320x480\n", width, height);
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        return KERN_FAILURE;
+        return 5;
     }
 
     if (png_get_bit_depth(png_ptr, info_ptr) != 8) {
         fprintf(stderr, "Bit depth must be 8, got %d\n", png_get_bit_depth(png_ptr, info_ptr));
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        return KERN_FAILURE;
+        return 5;
     }
 
     int color_type = png_get_color_type(png_ptr, info_ptr);
@@ -367,7 +367,7 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
     else {
         fprintf(stderr, "Unexpected color type after transforms: %d\n", color_type);
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        return KERN_FAILURE;
+        return 5;
     }
 
     size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
@@ -375,14 +375,14 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
     uint8_t *pixel_buf = malloc(pixel_data_size);
     if (pixel_buf == NULL) {
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     png_bytepp row_pointers = malloc(sizeof(png_bytep) * height);
     if (row_pointers == NULL) {
         free(pixel_buf);
         png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     for (png_uint_32 i = 0; i < height; i++) {
@@ -398,14 +398,14 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
     uint8_t *compressed = malloc(compress_buf_size);
     if (compressed == NULL) {
         free(pixel_buf);
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     uint8_t *compress_end = lzss_compress(compressed, (uint32_t)compress_buf_size, pixel_buf, (uint32_t)pixel_data_size);
     if (compress_end == NULL) {
         free(pixel_buf);
         free(compressed);
-        return KERN_FAILURE;
+        return 5;
     }
     size_t compressed_size = (size_t)(compress_end - compressed);
     free(pixel_buf);
@@ -422,7 +422,7 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
     uint8_t *result = calloc(1, total_size);
     if (result == NULL) {
         free(compressed);
-        return KERN_NO_SPACE;
+        return 3;
     }
 
     img2_inner_header_t *out_img2 = (img2_inner_header_t *)result;
@@ -441,5 +441,5 @@ kern_return_t ibootim_png_to_raw(const payload_t *png_payload, const payload_t *
     *out_buf = result;
     *out_size = total_size;
 
-    return KERN_SUCCESS;
+    return 0;
 }

@@ -82,7 +82,7 @@ static int apply_exploit_wrap(uint8_t *in_buf, size_t in_size, uint8_t **out_buf
     }
 
     exploit_image_t container = {0};
-    if (exploit_image_create(payload, payload_size, &container) != KERN_SUCCESS) {
+    if (exploit_image_create(payload, payload_size, &container) != 0) {
         fprintf(stderr, "[-] exploit_image_create failed\n");
         return -1;
     }
@@ -104,9 +104,9 @@ static int apply_exploit_wrap(uint8_t *in_buf, size_t in_size, uint8_t **out_buf
 static int connect_device(idevice_t *dev) {
     printf("[*] Waiting for recovery-mode device...\n");
     for (int attempt = 0; attempt < 30; attempt++) {
-        if (idevice_open(dev) == KERN_SUCCESS) {
+        if (idevice_open(dev) == 0) {
             printf("[+] Device connected in %s mode\n", device_mode_string(dev->mode));
-            if (idevice_init_handshake(dev) != KERN_SUCCESS) {
+            if (idevice_init_handshake(dev) != 0) {
                 fprintf(stderr, "[-] Handshake failed\n");
                 idevice_close(dev);
                 return -1;
@@ -147,14 +147,14 @@ static int send_file(idevice_t *dev, const char *path, uint32_t addr, bool explo
     }
 
     printf("[*] Sending to 0x%08X (%zu bytes)...\n", addr, send_size);
-    kern_return_t kr = idevice_send_file(dev, send_buf, send_size, addr);
+    int kr = idevice_send_file(dev, send_buf, send_size, addr);
 
     free(buf);
     if (exploit_buf) {
         free(exploit_buf);
     }
 
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         fprintf(stderr, "[-] Failed to send file\n");
         return -1;
     }
@@ -178,10 +178,10 @@ static int send_command(idevice_t *dev, const char *cmd) {
     }
 
     printf("[*] Sending: %s", cmd_nl);
-    kern_return_t kr = idevice_send_command(dev, cmd_nl);
+    int kr = idevice_send_command(dev, cmd_nl);
     free(cmd_nl);
 
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         fprintf(stderr, "[-] Command failed\n");
         return -1;
     }

@@ -1,5 +1,5 @@
 #include <dlfcn.h>
-#include <mach/mach.h>
+//#include <mach/mach.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,8 +57,8 @@ int main(int argc, char *argv[]) {
     unsigned int dlopen_addr = (unsigned int)real_dlopen;
 
     mach_port_t task = MACH_PORT_NULL;
-    kern_return_t kr = task_for_pid(mach_task_self(), pid, &task);
-    if (kr != KERN_SUCCESS) {
+    int kr = task_for_pid(mach_task_self(), pid, &task);
+    if (kr != 0) {
         printf("task_for_pid failed: %s\n", mach_error_string(kr));
         return 1;
     }
@@ -66,14 +66,14 @@ int main(int argc, char *argv[]) {
     thread_act_array_t threads;
     mach_msg_type_number_t thread_count;
     kr = task_threads(task, &threads, &thread_count);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("task_threads failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     thread_act_t target_thread = threads[0];
     kr = thread_suspend(target_thread);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("thread_suspend failed: %s\n", mach_error_string(kr));
         return 1;
     }
@@ -81,40 +81,40 @@ int main(int argc, char *argv[]) {
     struct arm_thread_state orig_state;
     mach_msg_type_number_t state_count = sizeof(orig_state) / sizeof(unsigned int);
     kr = thread_get_state(target_thread, ARM_THREAD_STATE, (thread_state_t)&orig_state, &state_count);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("thread_get_state failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     mach_vm_address_t path_addr = 0;
     kr = vm_allocate(task, (vm_address_t *)&path_addr, 0x1000, VM_FLAGS_ANYWHERE);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_allocate path failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     kr = vm_write(task, (vm_address_t)path_addr, (vm_offset_t)dylib_path, path_len);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_write failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     mach_vm_address_t code_addr = 0;
     kr = vm_allocate(task, (vm_address_t *)&code_addr, 0x1000, VM_FLAGS_ANYWHERE);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_allocate code failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     kr = vm_protect(task, (vm_address_t)code_addr, 0x1000, 0, VM_PROT_READ | VM_PROT_EXECUTE | VM_PROT_WRITE);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_protect failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     mach_vm_address_t data_addr = 0;
     kr = vm_allocate(task, (vm_address_t *)&data_addr, 0x1000, VM_FLAGS_ANYWHERE);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_allocate data failed: %s\n", mach_error_string(kr));
         return 1;
     }
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
     };
 
     kr = vm_write(task, (vm_address_t)data_addr, (vm_offset_t)data, sizeof(data));
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_write data failed: %s\n", mach_error_string(kr));
         return 1;
     }
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
     };
 
     kr = vm_write(task, (vm_address_t)code_addr, (vm_offset_t)shellcode, sizeof(shellcode));
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("vm_write code failed: %s\n", mach_error_string(kr));
         return 1;
     }
@@ -159,13 +159,13 @@ int main(int argc, char *argv[]) {
     new_state.lr = (unsigned int)code_addr;
 
     kr = thread_set_state(target_thread, ARM_THREAD_STATE, (thread_state_t)&new_state, sizeof(new_state) / sizeof(unsigned int));
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("thread_set_state failed: %s\n", mach_error_string(kr));
         return 1;
     }
 
     kr = thread_resume(target_thread);
-    if (kr != KERN_SUCCESS) {
+    if (kr != 0) {
         printf("thread_resume failed: %s\n", mach_error_string(kr));
         return 1;
     }

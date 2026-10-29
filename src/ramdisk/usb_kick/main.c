@@ -1,13 +1,13 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>
-#include <mach/mach.h>
+//#include <mach/mach.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
 
 typedef mach_port_t io_object_t;
 typedef io_object_t io_service_t;
-typedef kern_return_t IOReturn;
+typedef int IOReturn;
 
 typedef int32_t HRESULT_T;
 

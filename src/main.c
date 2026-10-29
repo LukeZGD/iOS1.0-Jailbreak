@@ -13,7 +13,7 @@
 #include "idevice.h"
 #include "common/lockdownd.h"
 
-#define STEP(expr, msg) if ((expr) != KERN_SUCCESS) { fprintf(stderr, msg "\n"); break; }
+#define STEP(expr, msg) if ((expr) != 0) { fprintf(stderr, msg "\n"); break; }
 
 typedef struct {
     bool enable_serial;
@@ -60,12 +60,12 @@ static void print_usage(const char *prog_name) {
     printf("Default behavior jailbreaks the device.\n");
 }
 
-static kern_return_t enter_recovery_mode(bool *out_is_iphone) {
+static int enter_recovery_mode(bool *out_is_iphone) {
     lockdownd_client_t client;
     memset(&client, 0, sizeof(client));
     if (!lockdownd_client_open(&client)) {
         fprintf(stderr, "Failed to connect to lockdownd\n");
-        return KERN_FAILURE;
+        return 5;
     }
 
     char session_id[64] = {0};
@@ -73,14 +73,14 @@ static kern_return_t enter_recovery_mode(bool *out_is_iphone) {
     if (lockdownd_client_start_paired_session(&client, session_id, sizeof(session_id), start_err, sizeof(start_err)) != 0) {
         fprintf(stderr, "Failed to start paired session: %s\n", start_err[0] ? start_err : "unknown error");
         lockdownd_client_cleanup(&client);
-        return KERN_FAILURE;
+        return 5;
     }
 
     char fw_version[16] = {0};
     if (!lockdownd_get_value_string(&client.session, "ProductVersion", fw_version, sizeof(fw_version))) {
         fprintf(stderr, "GetValue(Firmware Version) failed\n");
         lockdownd_client_cleanup(&client);
-        return KERN_FAILURE;
+        return 5;
     }
 
     int major = 0;
@@ -88,7 +88,7 @@ static kern_return_t enter_recovery_mode(bool *out_is_iphone) {
     if (major >= 2) {
         fprintf(stderr, "Unsupported firmware version. This only works on iOS 1.x\n");
         lockdownd_client_cleanup(&client);
-        return KERN_FAILURE;
+        return 5;
     }
 
     device_type_t dtype = probe_device_type(&client);
@@ -101,12 +101,12 @@ static kern_return_t enter_recovery_mode(bool *out_is_iphone) {
     if (!lockdownd_send_enter_recovery(&client.session, session_id, &response)) {
         fprintf(stderr, "Failed to send EnterRecovery command\n");
         lockdownd_client_cleanup(&client);
-        return KERN_FAILURE;
+        return 5;
     }
     CFRelease(response);
 
     lockdownd_client_cleanup(&client);
-    return KERN_SUCCESS;
+    return 0;
 }
 
 int main(int argc, const char *argv[]) {
@@ -153,7 +153,7 @@ int main(int argc, const char *argv[]) {
         }
 
         printf("\nWaiting for recovery-mode device...\n");
-        while (idevice_open(&dev) != KERN_SUCCESS) {
+        while (idevice_open(&dev) != 0) {
             idevice_close(&dev);
             sleep(1);
         }
